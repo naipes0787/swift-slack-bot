@@ -1,3 +1,10 @@
+//
+//  main.swift
+//  Async
+//
+//  Created by Leandro Costa on 30/08/2019.
+//
+
 import Foundation
 import SlackKit
 import Configuration
@@ -43,6 +50,7 @@ class HackathonBot {
         case balance
         case transfer
         case illegal
+        case test
         
         enum CustomError: Error {
             case illegalArgument
@@ -54,35 +62,46 @@ class HackathonBot {
                     return balance
                 case "transferir":
                     return transfer
+                case "test":
+                    return test
                 default:
                     return illegal
             }
         }
         
-        func execute(restManager: RestManager, textParsed: [String], user: String) {
+        func execute(_ restManager: RestManager, _ textParsed: [String], _ message: Message, _ bot: SlackKit) {
             switch self {
                 case .balance:
-                    TendermintRequester.getWoloxCoins(from: user, restManager: restManager)
+                    bot.webAPI?.sendMessage(channel: message.channel!, text: "Checking your balance... :bank:",
+                        iconEmoji: "robot_face", success: nil, failure: nil)
+                    TendermintRequester.getWoloxCoins(from: message.user!, restManager: restManager)
                 case .transfer:
                     let quantity = textParsed[2]
                     let recipient = textParsed[3]
                     // TODO: Check for illegalArgumentException
+                    bot.webAPI?.sendMessage(channel: message.channel!, text: "Transferring \(quantity) "
+                        + ":money_with_wings: :money_with_wings: :money_with_wings:",
+                                            iconEmoji: "robot_face", success: nil, failure: nil)
                     TendermintRequester.transfer(woloxCoins: Int(quantity) ?? 0, to: recipient,
-                                                 origin: user, restManager: restManager)
+                                                 origin: message.user!, restManager: restManager)
+                case .test:
+                    bot.webAPI?.addReactionToMessage(name: "thumbsup", channel: message.channel!,
+                                                     timestamp: message.ts!, success: nil, failure: nil)
+                    bot.webAPI?.sendMessage(channel: message.channel!, text: "I'm listening :smiley:",
+                                            iconEmoji: "robot_face", success: nil, failure: nil)
                 default:
                     print("Soy ilegal")
             }
         }
     }
     
-    // MARK: Bot logic
     private func handleMessage(_ message: Message) {
         print(message.user!.lowercased())
         print(message.text!.lowercased())
-        if let text = message.text?.lowercased(), let timestamp = message.ts, let channel = message.channel {
+        if let text = message.text?.lowercased() {
             let textParsed = text.components(separatedBy: " ")
             let command = Command.getFrom(stringCommand: textParsed[1].lowercased())
-            command.execute(restManager: restManager, textParsed: textParsed, user: message.user!)
+            command.execute(restManager, textParsed, message, bot)
         }
     }
 }
